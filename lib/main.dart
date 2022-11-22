@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -53,11 +54,34 @@ class DownloadAssetsDemoState extends State<DownloadAssetsDemo> {
     });
   }
 
+  void _onShare(BuildContext context) async {
+    // A builder is used to retrieve the context immediately
+    // surrounding the ElevatedButton.
+    //
+    // The context's `findRenderObject` returns the first
+    // RenderObject in its descendent tree when it's not
+    // a RenderObjectWidget. The ElevatedButton's RenderObject
+    // has its position and size after it's built.
+    final box = context.findRenderObject() as RenderBox?;
+
+    if (_pdf != null) {
+      final files = <XFile>[];
+      for (var i = 0; i < _pdf!.length; i++) {
+        files.add(XFile(_pdf![i]));
+      }
+      await Share.shareXFiles(
+        files,
+      );
+    } else {
+      print('error');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _pdf = [];
-    getHistoryPDFList();
+    // getHistoryPDFList();
     _tempPDF = [];
     _downloading = false;
     _initDir();
@@ -118,12 +142,13 @@ class DownloadAssetsDemoState extends State<DownloadAssetsDemo> {
     setState(() {
       _downloading = true;
     });
-
-    var zipfile1 = await _downloadFileStorage(_zipPath, _localZipFileName);
+    _pdf?.clear();
+    _tempPDF?.clear();
+    var zipfile1 = await _downloadFile(_zipPath, _localZipFileName);
     await unzipandsave(zipfile1);
 
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    prefs.setStringList("pdf", _tempPDF!);
+    // SharedPreferences prefs = await SharedPreferences.getInstance();
+    // prefs.setStringList("pdf", _tempPDF!);
     setState(() {
       _pdf = List<String>.from(_tempPDF!);
       _downloading = false;
@@ -135,6 +160,24 @@ class DownloadAssetsDemoState extends State<DownloadAssetsDemo> {
     var archive = ZipDecoder().decodeBytes(bytes);
     for (var file in archive) {
       var fileName = '$_dir/${file.name}';
+      print("fileName $fileName");
+      if (file.isFile && !fileName.contains("__MACOSX")) {
+        var outFile = File(fileName);
+        // ignore: prefer_interpolation_to_compose_strings
+
+        _tempPDF?.add(outFile.path);
+        outFile = await outFile.create(recursive: true);
+        await outFile.writeAsBytes(file.content);
+      }
+    }
+  }
+
+  unZip(var zippedFile) async {
+    var bytes = zippedFile.readAsBytesSync();
+    var archive = ZipDecoder().decodeBytes(bytes);
+    for (var file in archive) {
+      var fileName = '$_dir/${file.name}';
+
       print("fileName $fileName");
       if (file.isFile && !fileName.contains("__MACOSX")) {
         var outFile = File(fileName);
@@ -221,11 +264,25 @@ class DownloadAssetsDemoState extends State<DownloadAssetsDemo> {
                 height: 650,
                 child: buildList(),
               ),
-              ElevatedButton(
-                  onPressed: () {
-                    _downloadZipStorage();
-                  },
-                  child: const Text("Download PDF")),
+              // ElevatedButton(
+              //     onPressed: () {
+              //       _downloadZipStorage();
+              //     },
+              //     child: const Text("Download PDF")),
+              Row(
+                children: [
+                  ElevatedButton(
+                      onPressed: () {
+                        _downloadZipStorage();
+                      },
+                      child: const Text("Download PDF")),
+                  ElevatedButton(
+                      onPressed: () {
+                        _onShare(context);
+                      },
+                      child: const Text("Share PDF")),
+                ],
+              )
             ],
           ),
         ),
